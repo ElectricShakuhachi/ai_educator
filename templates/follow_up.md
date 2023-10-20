@@ -2,6 +2,6 @@
 
 Content: {integer here}
 Clarity: {integer here}
-Verbal Assesment of Students Reply: {assesment}
+Verbal Assesment of Students Reply: {assesment, no longer than 20 words.}
 
-(possible student praise and follow up questions here)
+{follow up question here}

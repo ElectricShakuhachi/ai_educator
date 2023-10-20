@@ -7,9 +7,9 @@ with open("apikey.txt", "r") as f:
 openai.api_key = API_KEY
 
 # SETTINGS INTENDED FOR USER TO CHANGE
-GOAL = "CCSS.ELA-LITERACY.W.4.9"
-SUBJECT = "Baseball"
-STUDENT_GRADE = 4
+GOAL = "CCSS.ELA-LITERACY.L.6.5.a"
+BEGINNING_SUBJECT = "Baseball"
+STUDENT_GRADE = 12
 # END OF SETTINGS INTENDED FOR USER TO CHANGE
 
 # AI TWEAKING SETTINGS
@@ -22,17 +22,18 @@ presence_penalty = 0.6
 # END OF AI TWEAKING SETTINGS
 
 # SETTINGS REGARDING EVALUATION AND HOW TO DEAL WITH EVALUATION RESULT
-answer_methodologies = {
-    "Over 9": "Use the feedback template.",
-    "Between 6-9": "Ask a follow-up question that is more difficult, but still within the scope of the source material and the context.",
-    "Over 5-6": "Point out what is correct in the students answer, but ask them for further justification, or a leading question that would lead them to the correct answer.",
-    "Less than 5": "Avoid pointing to the student their mistake in a negative way, instead ask them a question that would lead them to the correct answer.",
-}
-
-clarity_methodologies = {
-    "Over 8": "Mention that the answer was clear and well formulated.",
-    "Between 5-8": "Mention that the answer could be formulated more clearly.",
-    "Less than 5": "Ask the student for clarification and expain to them why their answer is not clear.",
+methodologies = {
+    "answers" : {
+        "Over 9": "Use the feedback template.",
+        "Between 6-9": "Ask a follow-up question that is more difficult, but still within the scope of the source material and the context.",
+        "Over 5-6": "Point out what is correct in the students answer, but ask them for further justification, or a leading question that would lead them to the correct answer.",
+        "Less than 5": "Avoid pointing to the student their mistake in a negative way, instead ask them a question that would lead them to the correct answer.",
+    },
+    "clarity" : {
+        "Over 8": "Mention that the answer was clear and well formulated.",
+        "Between 5-8": "Mention that the answer could be formulated more clearly.",
+        "Less than 5": "Ask the student for clarification and expain to them why their answer is not clear.",
+    }
 }
 # END OF SETTINGS REGARDING EVALUATION AND HOW TO DEAL WITH GRADE
 
@@ -53,19 +54,29 @@ The tool is intended to teach students on skills standardized in the Common Core
 The tool is designed for independent use by students, without the need for a teacher to be present.
 You have set the tool to teach a student of grade {STUDENT_GRADE}
 according to the following CCSS standard: {ccss_goal}
-The source material is set to be about {SUBJECT}.
+The source material is set to be about {BEGINNING_SUBJECT}.
 
 If this seems incorrect, see the documentation for how to change these settings.
 *In this MVP version, the settings can be changed in the start of the educator.py file.*
+
+Generating first excercise...
 
 """
 
 class Excercise:
     def __init__(self, excercise, command):
         self.excercise = excercise
-        self.log = [excercise, command]
+        self.log = []
         self.rating = None
         self.student_progress = []
+        self.add_assistant_response(excercise)
+        self.add_student_response(command)
+
+    def add_student_response(self, response):
+        self.log.append({"role": "user", "content": response})
+
+    def add_assistant_response(self, response):
+        self.log.append({"role": "assistant", "content": response})
 
 log_of_excercises = []
 tokens_used = 0
@@ -73,86 +84,112 @@ tokens_used = 0
 def stringify_dict(methodologies):
     return "\n".join([f"{score}: {methodology}" for score, methodology in methodologies.items()])
 
-with open("templates/follow_up.md", "r") as f:
-    follow_up_template = f.read()
+def get_templates():
+    with open("templates/follow_up.md", "r") as f:
+        follow_up_template = f.read()
 
-with open("templates/assignment.md", "r") as f:
-    assignment_template = f.read()
+    with open("templates/assignment.md", "r") as f:
+        assignment_template = f.read()
 
-with open("templates/feedback.md", "r") as f:
-    feedback_template = f.read()
+    with open("templates/feedback.md", "r") as f:
+        feedback_template = f.read()
 
-with open("templates/finish.md", "r") as f:
-    finish_template = f.read()
+    with open("templates/finish.md", "r") as f:
+        finish_template = f.read()
 
-system_prompt_ver3 = f"""
-You have three types of replies, do not deviate from them.
-The replies should follow as closely as possible the renderings of the following markdown templates,
-with parts in curly brackets replaced by appropriate content and no extra content in your message whatsoever outside
-of what the template specifies.
+    templates = {
+        "follow_up_template" : follow_up_template,
+        "assignment_template" : assignment_template,
+        "feedback_template" : feedback_template,
+        "finish_template" : finish_template
+    }
+    return templates
 
-assingment:
-```markdown
-{assignment_template}
-```
+def get_system_prompt(subject, ccss_goal, student_grade, templates, methodologies):
+    prompt = f"""
+    You have three types of replies, do not deviate from them.
+    The replies should follow as closely as possible the renderings of the following markdown templates,
+    with parts in curly brackets replaced by appropriate content and no extra content in your message whatsoever outside
+    of what the template specifies.
 
-follow up:
-```markdown
-{follow_up_template}
-```
+    assingment:
+    ```markdown
+    {templates["assignment_template"]}
+    ```
 
-feedback:
-```markdown
-{feedback_template}
-```
+    follow up:
+    ```markdown
+    {templates["follow_up_template"]}
+    ```
 
-finish:
-```finish
-{finish_template}
-```
+    feedback:
+    ```markdown
+    {templates["feedback_template"]}
+    ```
 
-You are a teacher AI, designed to teach a student from grade {STUDENT_GRADE} about {SUBJECT}.
-You are specifically assigned to teach them the following: {ccss_goal}
+    finish:
+    ```finish
+    {templates["finish_template"]}
+    ```
 
-If there are no messages in the chat history, start the conversation with an assignment using the template above.
-Give the student context, a source text and a question.
+    You are a teacher AI, designed to teach a student from grade {student_grade} about {subject}.
+    You are specifically assigned to teach them the following: {ccss_goal}
 
-If the last message is an answer from the student, 
-reply using the follow up template above.
-In the reply, at the provided spots for content and clarity, write down an evaluation of the students answer.
-Taking into account the students grade being {STUDENT_GRADE}, give a score from 1 to 10, where 1 is completely wrong and 10 is completely correct.
-Take into account the completeness of the students answer and relevance to the source material.
-Then assess whether the answer is clear and well formulated and give it a score from 1 to 10
-and write down your evaluation of the students answer at the provided spot.
+    If there are no messages in the chat history, start the conversation with an assignment using the template above.
+    Give the student context, a source text and a question. The question must be geared towards teaching and testing this goal:
+    {ccss_goal}
 
-Try to make the questions you ask the student as open-ended as possible, and avoid asking yes/no questions or questions that can be answered with a single word.
+    If the last message is an answer from the student, 
+    reply using the follow up template above.
+    In the reply, at the provided spots for content and clarity, write down an evaluation of the students answer.
+    Taking into account the students grade being {student_grade}, give a score from 1 to 10, where 1 is completely wrong and 10 is completely correct.
+    Take into account the completeness of the students answer and relevance to the source material.
+    Make sure to give the student a mark of 0 if their answer is in no way related to the source material or question,
+    or if their answer is copied from the source material.
+    Then assess whether the answer is clear and well formulated and give it a score from 1 to 10
+    and write down your evaluation of the students answer at the provided spot.
+    Make sure to ask the student follow up questions when using the follow up template.
+    If the student answered incorrectly, make questions that lead them to revise their thinking.
 
-Then, depending on the score, reply with one of the following methodologies:
+    If they answered correctly, ask something more difficult,
+    however, keep in mind that the goal is: {ccss_goal}
+    The follow up questions should reflect this.
 
-{stringify_dict(answer_methodologies)}
+    Try to make the questions you ask the student as open-ended as possible, and avoid asking yes/no questions or questions that can be answered with a single word.
+    Avoid too broad and general questions however, such as giving a student material about an animal and asking them to just describe the animal.
 
-Also, depending on your assessment of the clarity of the answer:
+    Then, depending on the score, reply with one of the following methodologies:
 
-{stringify_dict(clarity_methodologies)}
+    {stringify_dict(methodologies["answers"])}
 
-If the student appears to become frustrated or less and less focused in their answers,
-use the finish template (ask them if they would like to finish the excercise)
-If they answer positively, your next response should be the feedback template.
+    Also, depending on your assessment of the clarity of the answer:
 
-"""
+    {stringify_dict(methodologies["clarity"])}
 
-system_prompt = system_prompt_ver3
+    If the students answer is short and contains a lot of colloquial language, guide them to be more precise and long in their replies.
+
+    If the student appears to become frustrated or less and less focused in their answers,
+    use the finish template (ask them if they would like to finish the excercise)
+    If they answer positively, your next response should be the feedback template.
+
+    """
+    return prompt
+
+system_prompt = get_system_prompt(BEGINNING_SUBJECT, get_goal(GOAL), STUDENT_GRADE, get_templates(), methodologies)
 
 pre_chat = [
     {"role": "system", "content": system_prompt},
-    {"role": "user", "content": f"Hello, I am a student of grade {STUDENT_GRADE}. I am here to learn about {SUBJECT}. Please start"},
+    #{"role": "user", "content": f"Hello, I am a student of grade {STUDENT_GRADE}. I am here to learn about {subject}. Please start"},
 ]
 
 def parse_grading(reply):
-    content_grade = reply.split("\n")[2].split(":")[1].strip()
-    clarity_grade = reply.split("\n")[3].split(":")[1].strip()
-    verbal_feedback = reply.split("\n")[4].split(":")[1].strip()
-    return [content_grade, clarity_grade, verbal_feedback]
+    try:
+        content_grade = reply.split("\n")[2].split(":")[1].strip()
+        clarity_grade = reply.split("\n")[3].split(":")[1].strip()
+        verbal_feedback = reply.split("\n")[4].split(":")[1].strip()
+        return [content_grade, clarity_grade, verbal_feedback]
+    except IndexError:
+        return [None, None, None]
 
 def shorten_string(source: str):
     if len(source) > 100:
@@ -160,16 +197,17 @@ def shorten_string(source: str):
     else:
         return source
 
-def print_session_info(excercises):
-    print("############################  Session info:  ############################\n")
+def get_session_info(excercises):
+    session_info = "############################  Session info:  ############################\n"
     for excercise in excercises:
-        print(f"Excercise: {shorten_string(excercise.excercise)}\n")
+        session_info += f"Excercise: {shorten_string(excercise.excercise)}\n"
         #print(f"Log:")
         #for entry in excercise.log:
         #    print(f"{shorten_string(entry)}")
-        print(f"Rating: {excercise.rating}\n")
-        print(f"Student progress: {excercise.student_progress}\n")
-        print("\n\n")
+        session_info += f"Rating: {excercise.rating}\n"
+        session_info += f"Student progress: {excercise.student_progress}\n"
+        session_info += "\n\n"
+    return session_info
 
 def add_tokens(response):
     global tokens_used
@@ -191,6 +229,9 @@ def get_response(chat_history: list):
     add_tokens(res)
     return res
 
+def remove_parts_hidden_from_responses(response):
+    return
+
 def start_excercise():
     parsed_response=parse_response(get_response(pre_chat))
     print(parsed_response + "\n\n")
@@ -198,24 +239,36 @@ def start_excercise():
     excercise = Excercise(parsed_response, command)
     return excercise
 
-if __name__ == "__main__":
+def get_output(input):
+    parsed_response=parse_response(get_response(input))
+
+def run_from_command_line():
     if not get_goal(GOAL):
-        print("Goal not found from a list of CCSS, goal should be in the format of a CCSS standard code goal such as: CCSS.ELA-LITERACY.W.4.9")
-    print(opening_remarks)
+        raise ValueError("Goal not found from a list of CCSS, goal should be in the format of a CCSS standard code goal such as: CCSS.ELA-LITERACY.W.4.9")
     excercise = start_excercise()
     log_of_excercises.append(excercise)
-    while excercise.log[-1].strip().lower() != "quit":
+    while excercise.log[-1]["content"].strip().lower() != "quit":
         parsed_response=parse_response(get_response(pre_chat + excercise.log))
         if "Feedback" in parsed_response.split("\n")[0]:
-            rating = input("Gpt asked for rating:\n")
+            rating = input("Excercise is over, please rate it between 1-10 and add comments if you wish\n")
             excercise.rating = rating
+            print("\nThank you for your feedback.\n")
+            subject = input(f"If you wish to continue excercises with the same subject material press enter, otherwise, write a subject here: \n")
+            system_prompt = get_system_prompt(subject, get_goal(GOAL), STUDENT_GRADE, get_templates(), methodologies)
+            pre_chat[0]["content"] = system_prompt
             excercise = start_excercise()
         else:
             evaluation = parse_grading(parsed_response)
             excercise.student_progress.append(evaluation)
             print(parsed_response + "\n\n")
             command = input("\n\nInput your message here: (quit to end program)\n")
-            excercise.log.append({"role": "assistant", "content": parsed_response})
-            excercise.log.append({"role": "user", "content": command})
-    print_session_info(log_of_excercises)
+            excercise.add_assistant_response(parsed_response)
+            excercise.add_student_response(command)
+    rating = input("Excercise is over, please rate it between 1-10 and add comments if you wish\n")
+    excercise.rating = rating
+    print(get_session_info(log_of_excercises))
     print("Total tokens used: ", tokens_used)
+
+if __name__ == "__main__":
+    print(opening_remarks)
+    run_from_command_line()
