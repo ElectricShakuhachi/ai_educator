@@ -7,9 +7,9 @@ with open("apikey.txt", "r") as f:
 openai.api_key = API_KEY
 
 # SETTINGS INTENDED FOR USER TO CHANGE
-GOAL = "CCSS.ELA-LITERACY.L.6.5.a"
-BEGINNING_SUBJECT = "Baseball"
-STUDENT_GRADE = 12
+GOAL = "CCSS.ELA-LITERACY.W.4.9"
+BEGINNING_SUBJECT = "marine biology"
+STUDENT_GRADE = 7
 # END OF SETTINGS INTENDED FOR USER TO CHANGE
 
 # AI TWEAKING SETTINGS
@@ -59,17 +59,17 @@ The source material is set to be about {BEGINNING_SUBJECT}.
 If this seems incorrect, see the documentation for how to change these settings.
 *In this MVP version, the settings can be changed in the start of the educator.py file.*
 
-Generating first excercise...
+Generating first exercise...
 
 """
 
-class Excercise:
-    def __init__(self, excercise, command):
-        self.excercise = excercise
+class Exercise:
+    def __init__(self, exercise, command):
+        self.exercise = exercise
         self.log = []
         self.rating = None
         self.student_progress = []
-        self.add_assistant_response(excercise)
+        self.add_assistant_response(exercise)
         self.add_student_response(command)
 
     def add_student_response(self, response):
@@ -78,7 +78,7 @@ class Excercise:
     def add_assistant_response(self, response):
         self.log.append({"role": "assistant", "content": response})
 
-log_of_excercises = []
+log_of_exercises = []
 tokens_used = 0
 
 def stringify_dict(methodologies):
@@ -112,7 +112,7 @@ def get_system_prompt(subject, ccss_goal, student_grade, templates, methodologie
     with parts in curly brackets replaced by appropriate content and no extra content in your message whatsoever outside
     of what the template specifies.
 
-    assingment:
+    assignment:
     ```markdown
     {templates["assignment_template"]}
     ```
@@ -169,7 +169,7 @@ def get_system_prompt(subject, ccss_goal, student_grade, templates, methodologie
     If the students answer is short and contains a lot of colloquial language, guide them to be more precise and long in their replies.
 
     If the student appears to become frustrated or less and less focused in their answers,
-    use the finish template (ask them if they would like to finish the excercise)
+    use the finish template (ask them if they would like to finish the exercise)
     If they answer positively, your next response should be the feedback template.
 
     """
@@ -197,15 +197,15 @@ def shorten_string(source: str):
     else:
         return source
 
-def get_session_info(excercises):
+def get_session_info(exercises):
     session_info = "############################  Session info:  ############################\n"
-    for excercise in excercises:
-        session_info += f"Excercise: {shorten_string(excercise.excercise)}\n"
+    for exercise in exercises:
+        session_info += f"exercise: {shorten_string(exercise.exercise)}\n"
         #print(f"Log:")
-        #for entry in excercise.log:
+        #for entry in exercise.log:
         #    print(f"{shorten_string(entry)}")
-        session_info += f"Rating: {excercise.rating}\n"
-        session_info += f"Student progress: {excercise.student_progress}\n"
+        session_info += f"Rating: {exercise.rating}\n"
+        session_info += f"Student progress: {exercise.student_progress}\n"
         session_info += "\n\n"
     return session_info
 
@@ -232,12 +232,12 @@ def get_response(chat_history: list):
 def remove_parts_hidden_from_responses(response):
     return
 
-def start_excercise():
+def start_exercise():
     parsed_response=parse_response(get_response(pre_chat))
     print(parsed_response + "\n\n")
     command = input("Input your message here: (quit to end program)\n")
-    excercise = Excercise(parsed_response, command)
-    return excercise
+    exercise = Exercise(parsed_response, command)
+    return exercise
 
 def get_output(input):
     parsed_response=parse_response(get_response(input))
@@ -245,28 +245,28 @@ def get_output(input):
 def run_from_command_line():
     if not get_goal(GOAL):
         raise ValueError("Goal not found from a list of CCSS, goal should be in the format of a CCSS standard code goal such as: CCSS.ELA-LITERACY.W.4.9")
-    excercise = start_excercise()
-    log_of_excercises.append(excercise)
-    while excercise.log[-1]["content"].strip().lower() != "quit":
-        parsed_response=parse_response(get_response(pre_chat + excercise.log))
+    exercise = start_exercise()
+    log_of_exercises.append(exercise)
+    while exercise.log[-1]["content"].strip().lower() != "quit":
+        parsed_response=parse_response(get_response(pre_chat + exercise.log))
         if "Feedback" in parsed_response.split("\n")[0]:
-            rating = input("Excercise is over, please rate it between 1-10 and add comments if you wish\n")
-            excercise.rating = rating
+            rating = input("exercise is over, please rate it between 1-10 and add comments if you wish\n")
+            exercise.rating = rating
             print("\nThank you for your feedback.\n")
-            subject = input(f"If you wish to continue excercises with the same subject material press enter, otherwise, write a subject here: \n")
+            subject = input(f"If you wish to continue exercises with the same subject material press enter, otherwise, write a subject here: \n")
             system_prompt = get_system_prompt(subject, get_goal(GOAL), STUDENT_GRADE, get_templates(), methodologies)
             pre_chat[0]["content"] = system_prompt
-            excercise = start_excercise()
+            exercise = start_exercise()
         else:
             evaluation = parse_grading(parsed_response)
-            excercise.student_progress.append(evaluation)
+            exercise.student_progress.append(evaluation)
             print(parsed_response + "\n\n")
             command = input("\n\nInput your message here: (quit to end program)\n")
-            excercise.add_assistant_response(parsed_response)
-            excercise.add_student_response(command)
-    rating = input("Excercise is over, please rate it between 1-10 and add comments if you wish\n")
-    excercise.rating = rating
-    print(get_session_info(log_of_excercises))
+            exercise.add_assistant_response(parsed_response)
+            exercise.add_student_response(command)
+    rating = input("exercise is over, please rate it between 1-10 and add comments if you wish\n")
+    exercise.rating = rating
+    print(get_session_info(log_of_exercises))
     print("Total tokens used: ", tokens_used)
 
 if __name__ == "__main__":
