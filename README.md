@@ -20,11 +20,14 @@ In it's current state, you can run it as follows:
 
 - Create a virtual environment with python using the commands and install the dependencies
 
-```pyhton3 -m venv venv
+```
+pyhton3 -m venv venv
 ```
 
-```source venv/bin/activate
+```
+source venv/bin/activate
 ```
 
-```pip install -r requirements.txt
+```
+pip install -r requirements.txt
 ```
