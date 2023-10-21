@@ -2,7 +2,7 @@
 
 This is and AI powered educational tool.
 
-*Note, at this stage, this is a simple MVP just to give a prototype idea - the code is most definitely not good or secure for production*
+**Note, at this stage, this is a simple MVP just to give a prototype idea - the code is most definitely not good or secure for production**
 
 It is designed to teach a student by asking them questions about a source text and giving them feedback on their answers.
 The tool is intended to teach students on skills standardized in the Common Core State Standards Initiative.
